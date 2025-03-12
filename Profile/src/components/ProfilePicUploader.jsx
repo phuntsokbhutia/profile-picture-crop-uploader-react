@@ -1,19 +1,22 @@
-// src/components/ProfilePicUploader.jsx
 import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import ReactCrop from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 
-const ProfilePicUploader = () => {
+const ProfilePicUploader = ({ onImageUpload }) => {
   const [imageSrc, setImageSrc] = useState(null);
   const [crop, setCrop] = useState({ unit: '%', width: 50, aspect: 1 / 1 });
   const [croppedImageUrl, setCroppedImageUrl] = useState(null);
   const [imageRef, setImageRef] = useState(null);
+  const [showCropModal, setShowCropModal] = useState(false);
 
   const onDrop = useCallback((acceptedFiles) => {
     const file = acceptedFiles[0];
     const reader = new FileReader();
-    reader.onload = () => setImageSrc(reader.result);
+    reader.onload = () => {
+      setImageSrc(reader.result);
+      setShowCropModal(true); // Show the crop modal when an image is uploaded
+    };
     reader.readAsDataURL(file);
   }, []);
 
@@ -29,10 +32,9 @@ const ProfilePicUploader = () => {
 
   const makeClientCrop = async () => {
     if (imageRef && crop.width && crop.height) {
-      console.log('Crop values:', crop);
       try {
         const croppedImage = await getCroppedImg(imageRef, crop);
-        setCroppedImageUrl(croppedImage);
+        setCroppedImageUrl(croppedImage); // Set the cropped image URL to show preview
       } catch (error) {
         console.error('Error cropping image:', error);
       }
@@ -56,15 +58,6 @@ const ProfilePicUploader = () => {
     canvas.width = pixelCrop.width;
     canvas.height = pixelCrop.height;
     const ctx = canvas.getContext('2d');
-
-    console.log('Drawing on canvas with:', {
-      sourceX: pixelCrop.x * scaleX,
-      sourceY: pixelCrop.y * scaleY,
-      sourceWidth: pixelCrop.width * scaleX,
-      sourceHeight: pixelCrop.height * scaleY,
-      destWidth: pixelCrop.width,
-      destHeight: pixelCrop.height,
-    });
 
     ctx.drawImage(
       image,
@@ -93,65 +86,121 @@ const ProfilePicUploader = () => {
     });
   };
 
+  const handleSave = () => {
+    if (croppedImageUrl && onImageUpload) {
+      onImageUpload(croppedImageUrl); // Pass the cropped image to the parent
+      setShowCropModal(false); // Close the modal after saving
+    }
+  };
+
+  const handleCloseModal = () => {
+    setShowCropModal(false);
+    setImageSrc(null);
+    setCroppedImageUrl(null); // Reset everything on cancel
+  };
+
   return (
-    <div style={{ maxWidth: '500px', margin: '20px auto', textAlign: 'center' }}>
-      {!imageSrc && (
-        <div style={{ padding: '20px' }}>
-          <button
-            {...getRootProps()}
+    <div>
+      {!imageSrc && !croppedImageUrl && (
+        <button {...getRootProps()} className="edit-button">
+          <input {...getInputProps()} />
+          Upload Profile Picture
+        </button>
+      )}
+
+      {croppedImageUrl && !showCropModal && (
+        <button
+          onClick={() => {
+            setImageSrc(null);
+            setCroppedImageUrl(null);
+          }}
+          className="edit-button"
+          style={{ marginTop: '10px' }}
+        >
+          Upload Another
+        </button>
+      )}
+
+      {showCropModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000,
+          }}
+          onClick={handleCloseModal}
+        >
+          <div
             style={{
-              border: 'none',
-              background: 'none',
-              cursor: 'pointer',
-              padding: 0,
-              fontSize: '50px',
+              backgroundColor: 'white',
+              padding: '20px',
+              borderRadius: '8px',
+              textAlign: 'center',
+              minWidth: '300px',
+              maxWidth: '600px',
             }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <input {...getInputProps()} />
-            <span role="img" aria-label="upload image">
-              📷
-            </span>
-          </button>
-          <p style={{ marginTop: '10px' }}>Click the image icon to upload a profile picture</p>
+            {!croppedImageUrl ? (
+              <>
+                <ReactCrop
+                  crop={crop}
+                  onChange={(_, percentCrop) => setCrop(percentCrop)}
+                  aspect={1 / 1}
+                >
+                  <img src={imageSrc} onLoad={(e) => onImageLoad(e.target)} alt="Crop preview" />
+                </ReactCrop>
+                <button onClick={makeClientCrop} className="edit-button" style={{ marginTop: '10px' }}>
+                  Crop Image
+                </button>
+                <button
+                  onClick={handleCloseModal}
+                  className="edit-button"
+                  style={{ marginTop: '10px', marginLeft: '10px' }}
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <h3>Preview</h3>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+                  <img
+                    src={croppedImageUrl}
+                    alt="Cropped preview"
+                    style={{
+                      width: '100px',
+                      height: '100px',
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      display: 'block',
+                    }}
+                  />
+                </div>
+                <button onClick={handleSave} className="edit-button" style={{ marginRight: '10px' }}>
+                  Save
+                </button>
+                <button
+                  onClick={() => setCroppedImageUrl(null)} // Go back to cropping
+                  className="edit-button"
+                  style={{ marginRight: '10px' }}
+                >
+                  Recrop
+                </button>
+                <button onClick={handleCloseModal} className="edit-button">
+                  Cancel
+                </button>
+              </>
+            )}
+          </div>
         </div>
-      )}
-
-      {imageSrc && !croppedImageUrl && (
-        <>
-          <ReactCrop
-            crop={crop}
-            onChange={(_, percentCrop) => setCrop(percentCrop)}
-            aspect={1 / 1}
-          >
-            <img src={imageSrc} onLoad={(e) => onImageLoad(e.target)} alt="Crop preview" />
-          </ReactCrop>
-          <button
-            onClick={makeClientCrop}
-            style={{ marginTop: '10px' }}
-          >
-            Crop Image
-          </button>
-        </>
-      )}
-
-      {croppedImageUrl && (
-        <>
-          <h3>Cropped Profile Picture</h3>
-          <img
-            src={croppedImageUrl}
-            alt="Cropped result"
-            style={{ maxWidth: '100%', borderRadius: '50%' }}
-          />
-          <button
-            onClick={() => {
-              setImageSrc(null);
-              setCroppedImageUrl(null);
-            }}
-            style={{ marginTop: '10px' }}
-          >
-            Upload Another
-          </button>
-        </>
       )}
     </div>
   );
